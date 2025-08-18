@@ -1,35 +1,34 @@
 import knex from '../postgres/knex.js';
 import axios from 'axios';
 import 'dotenv/config';
-import { WB_TARIFFS_TABLE_NAME } from "#wb-tariffs/consts.js";
-import { parseDecimalValue } from "#utils/utils.js";
+import { WB_TARIFFS_TABLE_NAME } from '#wb-tariffs/consts.js';
+import { parseDecimalValue } from '#utils/utils.js';
 
+// Получение тарифов с API Wildberries
 async function fetchTariffsFromApi(): Promise<any> {
-    const now = new Date();
-    const formattedDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const formattedDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
     const response = await axios.get('https://common-api.wildberries.ru/api/v1/tariffs/box', {
-        params: {
-            date: formattedDate
-        },
+        params: { date: formattedDate },
         headers: {
-            'Authorization': process.env.WP_TOKEN as string
-        }
+            Authorization: process.env.WP_TOKEN as string,
+        },
     });
+
     return response.data?.response?.data;
 }
 
+// Обновление тарифов в базе данных
 export async function updateTariffs() {
     const data = await fetchTariffsFromApi();
+    const { dtNextBox, dtTillMax, warehouseList } = data || {};
 
-    const { dtNextBox, dtTillMax, warehouseList } = data;
-
-    if (!warehouseList || !Array.isArray(warehouseList)) {
-        console.warn('⚠️ Получены некорректные данные, warehouseList отсутствует.');
+    if (!Array.isArray(warehouseList)) {
+        console.warn('⚠️ Неверный формат данных: warehouseList отсутствует или не массив.');
         return;
     }
 
-    const now = new Date();
-    const date = now.toISOString().split('T')[0]; // '2025-08-18'
+    const date = new Date().toISOString().split('T')[0];
 
     const rowsToInsert = warehouseList.map((item: any) => ({
         dt_next_box: dtNextBox || null,
@@ -38,11 +37,11 @@ export async function updateTariffs() {
         box_delivery_and_storage_expr: item.boxDeliveryAndStorageExpr,
         box_delivery_base: parseDecimalValue(item.boxDeliveryBase),
         box_delivery_coef_expr: parseDecimalValue(item.boxDeliveryCoefExpr),
-        box_delivery_liter: parseDecimalValue(item.boxDeliveryLiter.replace(',', '.')),
+        box_delivery_liter: parseDecimalValue(item.boxDeliveryLiter?.replace(',', '.')),
 
         box_delivery_marketplace_base: parseDecimalValue(item.boxDeliveryMarketplaceBase),
         box_delivery_marketplace_coef_expr: parseDecimalValue(item.boxDeliveryMarketplaceCoefExpr),
-        box_delivery_marketplace_liter: parseDecimalValue(item.boxDeliveryMarketplaceLiter.replace(',', '.')),
+        box_delivery_marketplace_liter: parseDecimalValue(item.boxDeliveryMarketplaceLiter?.replace(',', '.')),
 
         box_storage_base: parseDecimalValue(item.boxStorageBase),
         box_storage_coef_expr: parseDecimalValue(item.boxStorageCoefExpr),
@@ -51,20 +50,20 @@ export async function updateTariffs() {
         geo_name: item.geoName,
         warehouse_name: item.warehouseName,
 
-        // updated_at: new Date(),
-        date: date
+        date, // дата загрузки
     }));
 
     await knex(WB_TARIFFS_TABLE_NAME)
         .insert(rowsToInsert)
         .onConflict(['date', 'warehouse_name'])
-        .merge()
+        .merge();
 
     console.log(`✅ Обновлено тарифов: ${rowsToInsert.length}`);
 }
 
+// Получение тарифов с сортировкой по коэффициенту
 export async function getTariffsSorted() {
-    return await knex('tariff_boxes')
+    return await knex(WB_TARIFFS_TABLE_NAME)
         .select('*')
-        .orderBy('box_delivery_coef_expr', 'asc'); // сортировка по возрастанию коэффициента
+        .orderBy('box_delivery_coef_expr', 'asc');
 }

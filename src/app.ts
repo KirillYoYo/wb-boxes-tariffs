@@ -1,32 +1,41 @@
 import knex, { migrate, seed } from "#postgres/knex.js";
 import { getTariffsSorted, updateTariffs } from "#wb-tariffs/getTariffs.js";
-import cron from 'node-cron';
 import { createSpreadsheet, updateAllSheets } from "#wb-tariffs/googleSheets.js";
+import cron from "node-cron";
 
+// Выполнение миграций и сидов
 await migrate.latest();
 await seed.run();
-console.log("All migrations and seeds have been run");
+console.log("✅ Миграции и сиды выполнены");
 
+// Основная функция обновления данных в Google Sheets
 async function updateGoogleSheets() {
-    await updateTariffs().catch(console.error);
-    const sheetsIds = await knex('spreadsheets').select('*');
+    try {
+        await updateTariffs();
+        const sheetsRecords = await knex("spreadsheets").select("*");
 
-    /**
-     * включить если есть Google Workspace
-     * */
-        // if (!sheetsIds.length) {
-        //     const newSheetId = await createSpreadsheet('new sheet')
-        //     await knex('spreadsheets').insert({
-        //         spreadsheet_id: newSheetId,
-        //     });
-        // }
+        // Создание нового документа, если таблица пуста (раскомментировать при наличии Google Workspace)
+        /*
+        if (!sheetsRecords.length) {
+            const newSheetId = await createSpreadsheet("new sheet");
+            await knex("spreadsheets").insert({
+                spreadsheet_id: newSheetId,
+            });
+        }
+        */
 
-    const data = await getTariffsSorted()
+        const tariffs = await getTariffsSorted();
+        const spreadsheetIds = sheetsRecords.map(record => record.spreadsheet_id);
 
-    await updateAllSheets(sheetsIds.map(el => el.spreadsheet_id), data)
+        await updateAllSheets(spreadsheetIds, tariffs);
+    } catch (error) {
+        console.error("🔴 Ошибка при обновлении Google Sheets:", error);
+    }
 }
 
-updateGoogleSheets()
-cron.schedule('0 * * * *', async () => {
-    updateGoogleSheets()
+updateGoogleSheets();
+
+// каждый час
+cron.schedule("0 * * * *", async () => {
+    await updateGoogleSheets();
 });

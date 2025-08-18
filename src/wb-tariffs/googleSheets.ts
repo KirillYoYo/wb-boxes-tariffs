@@ -1,10 +1,14 @@
 import { google } from 'googleapis';
 import { GoogleAuth } from 'google-auth-library';
-import { SHEET_TITLE } from "#wb-tariffs/consts.js";
+import { SHEET_TITLE } from '#wb-tariffs/consts.js';
 
 const KEY_FILE_PATH = './sheets-auth.json';
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'];
+const SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive',
+];
 
+// Тип строки тарифа
 type TariffRow = {
     date: string;
     dt_next_box: string;
@@ -23,16 +27,20 @@ type TariffRow = {
     warehouse_name?: string;
 };
 
+// Получение клиента Google Sheets API
 function getSheetsClient() {
     const auth = new GoogleAuth({
         keyFile: KEY_FILE_PATH,
         scopes: SCOPES,
     });
+
     return google.sheets({ version: 'v4', auth });
 }
 
+// Создание нового Google Spreadsheet
 export async function createSpreadsheet(title: string, sheetTitle = SHEET_TITLE): Promise<string> {
     const sheets = getSheetsClient();
+
     const response = await sheets.spreadsheets.create({
         requestBody: {
             properties: { title },
@@ -40,18 +48,22 @@ export async function createSpreadsheet(title: string, sheetTitle = SHEET_TITLE)
         },
         fields: 'spreadsheetId',
     });
+
     return response.data.spreadsheetId!;
 }
 
+// Обновление одного листа данными
 export async function updateGoogleSheet(sheetId: string, data: TariffRow[]): Promise<void> {
     const sheets = getSheetsClient();
 
-    // Проверим, существует ли лист с нужным названием
+    // Проверка наличия листа с нужным названием
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+
     const sheetExists = spreadsheet.data.sheets?.some(
         (s) => s.properties?.title === SHEET_TITLE
     );
 
+    // Если лист отсутствует — создать его
     if (!sheetExists) {
         await sheets.spreadsheets.batchUpdate({
             spreadsheetId: sheetId,
@@ -69,6 +81,7 @@ export async function updateGoogleSheet(sheetId: string, data: TariffRow[]): Pro
         });
     }
 
+    // Преобразуем данные в формат для записи в Google Sheets
     const values = data.map((row) => [
         row.date,
         row.dt_next_box,
@@ -87,6 +100,7 @@ export async function updateGoogleSheet(sheetId: string, data: TariffRow[]): Pro
         row.warehouse_name ?? '',
     ]);
 
+    // Добавляем заголовки
     values.unshift([
         'Date',
         'Dt Next Box',
@@ -105,13 +119,13 @@ export async function updateGoogleSheet(sheetId: string, data: TariffRow[]): Pro
         'Warehouse Name',
     ]);
 
-    // Очистим содержимое листа
+    // Очистка существующего содержимого
     await sheets.spreadsheets.values.clear({
         spreadsheetId: sheetId,
         range: SHEET_TITLE,
     });
 
-    // Запишем новые данные
+    // Запись новых данных
     await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
         range: SHEET_TITLE,
@@ -119,16 +133,16 @@ export async function updateGoogleSheet(sheetId: string, data: TariffRow[]): Pro
         requestBody: { values },
     });
 
-    console.log(`✅ Sheet "${sheetId}" успешно обновлён.`);
+    console.log(`✅ Лист "${sheetId}" успешно обновлён.`);
 }
 
+// Обновление всех листов
 export async function updateAllSheets(sheetIds: string[], data: TariffRow[]): Promise<void> {
-    for (const id of sheetIds) {
+    for (const sheetId of sheetIds) {
         try {
-            await updateGoogleSheet(id, data);
-            console.log(`Sheet ${id} updated successfully`);
+            await updateGoogleSheet(sheetId, data);
         } catch (error) {
-            console.error(`Error updating sheet ${id}:`, error);
+            console.error(`🔴 Ошибка при обновлении sheet ${sheetId}:`, error);
         }
     }
 }
