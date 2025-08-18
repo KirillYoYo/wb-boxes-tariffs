@@ -51,4 +51,14 @@ docker compose down --rmi local --volumes
 docker compose up --build
 ```
 
-PS: С наилучшими пожеланиями!
+
+## Таблицы в Google Sheets:
+сгенерируйте свой файл с доступами из google sheets и положите в корень проекта.<br>
+Имя файла обязательно должно быть `sheets-auth.json`
+
+токен для работы с WB-API добавьте в env: `WP_TOKEN`
+
+Если у вас уже созданные таблицы - добавьте их ID в базу `spreadsheets`,<br>
+Данные обновляются в листе `stocks_coefs`<br>
+Если у вас в таблице нет листа `stocks_coefs` - то скрипт создаст его
+
