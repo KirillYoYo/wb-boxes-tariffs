@@ -3,6 +3,7 @@ import axios from 'axios';
 import 'dotenv/config';
 import { WB_TARIFFS_TABLE_NAME } from '#wb-tariffs/consts.js';
 import { parseDecimalValue } from '#utils/utils.js';
+import env from "#config/env/env.js";
 
 // Получение тарифов с API Wildberries
 async function fetchTariffsFromApi(): Promise<any> {
@@ -11,7 +12,7 @@ async function fetchTariffsFromApi(): Promise<any> {
     const response = await axios.get('https://common-api.wildberries.ru/api/v1/tariffs/box', {
         params: { date: formattedDate },
         headers: {
-            Authorization: process.env.WP_TOKEN as string,
+            Authorization: env.WP_TOKEN as string,
         },
     });
 
